@@ -1,0 +1,73 @@
+
+// tested master import for Persons, Doctors
+
+//1. create Person nodes
+LOAD CSV WITH HEADERS FROM 'file:///_Persons_table.csv' AS row
+//dobs[] is a list of date string elements
+WITH DISTINCT row, SPLIT(row.DOB,'/') as dobs
+MERGE (p:Person {person_id: toInt(row.ID)})
+
+ON CREATE SET p.category=row.Category, 
+  p.familyid=toInt(row.FamilyID),
+  p.doctorid = toInt(row.DoctorID),
+  //only attach permission flag if a doctor is nominated
+  p.send_results_to_dr = CASE WHEN EXISTS(row.DoctorID) THEN 
+							CASE row.PermitSendDrLetter WHEN '0' THEN false ELSE true END 
+                         END,
+  p.firstname = row.FirstName, 
+  p.surname = row.Surname,
+  p.givennames = row.GivenNames,
+  //no native date primitive - render date as yyyymmdd
+  p.dob = toInt(dobs[0])+toInt(dobs[1])*100 + toInt(substring(dobs[2],0,4))*10000, 
+  p.gender = row.Sex
+;  
+
+//2. create Doctor nodes
+LOAD CSV WITH HEADERS FROM 'file:///_Doctors_table.csv' AS row
+WITH DISTINCT row
+MERGE (d:Doctor {doctor_id: toInt(row.ID)})
+
+ON CREATE SET d.title = row.Title, 
+  d.firstname = row.DrFirstName,
+  d.surname = row.DrSurname,
+  //status flag if a doctor is active or not
+  d.status = CASE row.Status WHEN '0' THEN 'inactive' ELSE 'active'END,
+  d.clinic = row.Address,
+  d.location = row.Town
+;  
+
+//3. create index on Person and Doctor nodes
+CREATE INDEX ON :Person(person_id);
+CREATE INDEX ON :Person(surname);
+CREATE INDEX ON :Doctor(doctor_id);  
+
+
+//4. create relationship between Person and Doctor nodes
+//   [:HAS_DOCTOR], also add property,can_receive_results, to describe the relationship
+MATCH (p:Person),(d:Doctor)
+WHERE EXISTS(p.doctorid) AND p.doctorid = d.doctor_id
+MERGE (p)-[r:HAS_DOCTOR]->(d)
+ON CREATE SET r.can_receive_results = p.send_results_to_dr 
+;
+
+//at this stage Person.send_results_to_dr and Person.doctor_id properties can be Removed
+// they are no longer needed as relationship linking that node to Doctor node is established
+//5. remove Person properhties that originally defined relationship between Person and Doctor nodes
+//   these are no longer required
+MATCH (p:Person)-[:HAS_DOCTOR]->(d:Doctor)
+REMOVE p.doctorid,  p.send_results_to_dr 
+;
+
+
+//6. create family relationships as single [:]between Person nodes that have same familyid
+MATCH (p:Person)
+WITH p
+MATCH (f:Person)
+WHERE p.familyid=f.familyid AND p<>f //AND p.familyid=1083 //<>1711//=1110//1083
+MERGE (p)-[:RELATED_TO]-(f)
+;
+
+//keep p.familyid to create relationship with Properties
+
+
+

@@ -1,0 +1,124 @@
+What kind of question can we ask of the database:
+
+1. how many active doctors are there
+2. list all doctors and the total number of kids that consult with them
+3. list all doctors the number of kids that want them to receive results and not
+4. how many persons in each category
+5. how many persons have not updated their doctor details since the doctor left town or is inactive, who are they?
+
+6. List families, other than 1711 and number of people within them
+MATCH (p:Person)
+//WITH p, COLLECT(p.person_id) as members
+WHERE (p.familyid)<>1711
+RETURN 
+p.familyid AS Family, COUNT(*) AS Family_size//, members
+//WHERE  Family_size > 1
+ORDER BY Family_size DESC
+;
+
+7. Find all members of a family
+MATCH (p:Person)
+WITH p
+MATCH (f:Person)
+WHERE p.familyid=f.familyid AND p<>f AND p.familyid=1110//<>1711//1083
+RETURN //DISTINCT p.person_id, p.familyid//, f.person_id, f.familyid
+p
+;
+
+8. Find names of family members where a Mum has at least three children 
+MATCH (p:Person{category:'mother'})-[:RELATED_TO]-(f:Person)
+WITH p, COLLECT(f.firstname) as children
+WHERE LENGTH(children) >= 3
+RETURN
+p.familyid, p.firstname + ' ' + p.surname AS Mum, children
+ORDER BY Mum
+//LIMIT 10
+;
+
+9. Find doctors by status and number of children in their care
+MATCH (d:Doctor)-[:HAS_DOCTOR]-(f:Person{category:'child'})
+WITH d, COUNT(f.firstname) as children
+RETURN
+UPPER(d.status), coalesce(d.firstname, '-') + ' ' + d.surname AS Dr, children
+ORDER BY d.status DESC,children DESC
+;
+
+10. Find all families where members do not see the same doctor, eg family=1204
+MATCH (p:Person{category:'mother'})-[]-(d:Doctor)//-[:RELATED_TO]//-(c:Person)-[:HAS_DOCTOR{can_receive_results:'true'}]
+//MATCH (p:Person {category:"mother"})-[]-(d:Person)-[:HAS_DOCTOR{can_sent_dr_letter:'false'}]
+MATCH (c:Person)-[]-(e:Doctor)
+WHERE 
+p.familyid=c.familyid AND //=1204 AND 
+d.doctor_id<>e.doctor_id
+RETURN p.familyid, p.firstname + ' ' + p.surname AS Mum,c.firstname AS child,
+coalesce(d.surname,d.doctor_id) AS Mum_dr,coalesce(e.surname,e.doctor_id) AS child_dr
+ORDER BY p.familyid;
+
+11. Show a family where different members see different doctors
+MATCH (p)-[r:HAS_DOCTOR{can_receive_results:True OR False}]->()
+WITH p
+MATCH (f:Person)
+WHERE 
+NOT (f)-[:s]-()
+AND p.familyid = f.familyid =64 // (1083,64) //= 64
+//family 63: kids that have a Dr, have the same one
+//family 64: kids have a different DR
+//family 1083: mum has a different dr to kids'
+//=63 //=398 //68 //167
+RETURN
+(p)--() ,(f)--() 
+
+
+12. Find families where some members have a doctors and others don't
+MATCH (p)-[r:HAS_DOCTOR]->()
+//MATCH (d:Doctor)
+WITH p
+MATCH (f:Person)
+WHERE 
+NOT (f)-[:HAS_DOCTOR]->()
+AND p.familyid=f.familyid //=398 //68 //167
+RETURN
+//(p)-[]->(), f
+(p)--(), ()--(f)
+LIMIT 6
+
+
+-->>> optional
+MATCH (p)-[r:HAS_DOCTOR{can_receive_results:True OR False}]->()
+WITH p
+MATCH (f:Person)
+WHERE 
+NOT (f)-[:s]-()
+AND p.familyid = f.familyid //=465 // (1083,64) //= 64
+//family 63: kids that have a Dr, have the same one
+//family 64: kids have a different DR
+//family 1083: mum has a different dr to kids'
+//=63 //=398 //68 //167
+RETURN
+(p)--() ,(f)--() // works, though only shows one doctor
+LIMIT 100
+//p.familyid, p.firstname
+
+//f.familyid, f.firstname
+
+
+
+14. List how many doctors per family, discard less than 2 - ideal is 1 (one)
+WITH p.familyid AS Family,collect(DISTINCT d.surname) AS FamilyDrs, count(DISTINCT d.doctor_id) AS DrCount 
+WHERE DrCount>1
+RETURN
+Family,FamilyDrs,DrCount
+ORDER BY DrCount DESC
+
+
+
+
+
+
+
+
+
+
+
+
+

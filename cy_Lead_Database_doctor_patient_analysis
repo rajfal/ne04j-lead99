@@ -1,0 +1,45 @@
+
+Build a patient profile for each doctor
+
+1.	- how many children in a doctor's care? 
+----------------------------------------------------------------------------------
+MATCH (d:Doctor)-[:HAS_DOCTOR]-(f:Person{category:'child'})
+WITH d, COUNT(f.firstname) as children
+RETURN
+UPPER(d.status), coalesce(d.firstname, '-') + ' ' + d.surname AS Dr, children
+ORDER BY d.status DESC,children DESC
+----------------------------------------------------------------------------------
+
+2.	- how many of each category/gender are in each doctor's care? 
+----------------------------------------------------------------------------------
+MATCH (d:Doctor{surname:'Rolleston'})-[]-(f:Person)
+WITH d, f, count(f.category) as pts
+RETURN
+coalesce(d.firstname, '-') + ' ' + d.surname AS Dr, f.category AS patient_type, 
+CASE f.gender WHEN "f" THEN "female" WHEN "m" THEN "male" ELSE "unknown" END AS gender, sum(pts)AS number_patients
+ORDER BY Dr, patient_type, gender
+----------------------------------------------------------------------------------
+MATCH (d:Doctor{surname:'Rolleston'})-[]-(f:Person)
+WITH d, f, count(f.person_id) AS pts
+WITH d, f, pts, sum(pts) AS dr_total_pts
+RETURN
+coalesce(d.firstname, '-') + ' ' + d.surname AS Dr,  
+CASE f.gender WHEN "f" THEN f.category+" - female" WHEN "m" THEN f.category+" - male" ELSE f.category+" - unknown" END AS ptg, 
+sum(pts) AS number_patients, dr_total_pts,
+(pts/dr_total_pts) AS percentageX
+ORDER BY Dr,  ptg
+----------------------------------------------------------------------------------
+
+
+
+
+
+	- what age brackets within each of the above
+	- what age brackets in entire population
+	- what family case mix in each family
+	- likelihood of having a closed book and not taking any more patients
+	- calculate a trust level based on the survey whether patients are willing to share their external clinic results with them
+	
+2. I will compare information from each doctor and then determine/define the best three doctors for each category with a probability of closed books. I will assume that the doctor with highest score in any one category is best one for a person/family that satisfies that category
+
+3. Use the findings above to develop a recommendation engine whereby given a person's or family's characteristics we could direct them to the doctor most appropriate for their circumstances, without also overwhelming the doctor's capability to deliver a meaningful service
